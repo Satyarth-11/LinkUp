@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "build:android": "copy .env.android .env && vite build",
+    "build:android": "cmd /c \"copy .env.android .env /Y\" && vite build",
+    "build:android:full": "cmd /c \"copy .env.android .env /Y\" && vite build && npx cap sync android",
     "cap:sync": "npx cap sync android",
     "cap:open": "npx cap open android"
   },
