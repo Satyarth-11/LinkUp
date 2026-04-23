@@ -2,6 +2,7 @@ services:
   - type: web
     name: linkup-backend
     runtime: node
+    rootDir: backend
     buildCommand: npm install
     startCommand: node server.js
     plan: free
@@ -12,9 +13,14 @@ services:
         value: 5000
       - key: MONGO_URI
         sync: false
+        # Set this in Render dashboard → Environment
+        # Use MongoDB Atlas: mongodb+srv://<user>:<pass>@cluster.mongodb.net/linkup?retryWrites=true&w=majority
       - key: JWT_SECRET
-        sync: false
+        generateValue: true
+        # Render will auto-generate a secure random string
       - key: FRONTEND_URL
         sync: false
+        # Set this to your Vercel URL e.g. https://linkup.vercel.app
+        # Multiple URLs: https://linkup.vercel.app,https://linkup-git-main.vercel.app
       - key: BASE_URL
-        sync: false
+        value: https://linkup-gqtd.onrender.com
