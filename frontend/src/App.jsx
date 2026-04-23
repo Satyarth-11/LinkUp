@@ -5,14 +5,16 @@ import AuthPage from './pages/AuthPage'
 import Dashboard from './pages/Dashboard'
 import ChatRoom from './pages/ChatRoom'
 import RandomChat from './pages/RandomChat'
+import ProfilePage from './pages/ProfilePage'
+import PrivacySettings from './pages/PrivacySettings'
 
 function PrivateRoute({ children }) {
   const { user, loading } = useAuth()
   if (loading) return (
     <div className="h-screen mesh-bg flex items-center justify-center">
-      <div className="text-center space-y-3">
-        <div className="w-10 h-10 rounded-full border-2 border-t-transparent" style={{ borderColor: 'var(--accent)', borderTopColor: 'transparent', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
-        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Loading...</p>
+      <div className="text-center space-y-4">
+        <div className="spinner spinner-lg text-brand mx-auto" />
+        <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Loading…</p>
       </div>
     </div>
   )
@@ -26,6 +28,8 @@ function App() {
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
+          <Route path="/profile" element={<PrivateRoute><ProfilePage /></PrivateRoute>} />
+          <Route path="/privacy" element={<PrivateRoute><PrivacySettings /></PrivateRoute>} />
           <Route path="/chat/:roomId" element={<PrivateRoute><ChatRoom /></PrivateRoute>} />
           <Route path="/random" element={<PrivateRoute><RandomChat /></PrivateRoute>} />
           <Route path="*" element={<Navigate to="/" replace />} />

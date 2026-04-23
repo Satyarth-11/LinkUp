@@ -1,8 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
+import { useToast } from '../context/ToastContext'
 import { getSocket } from '../utils/socket'
-import { ArrowLeft, Send, Zap, RefreshCw, X, Globe, Hash, SlidersHorizontal } from 'lucide-react'
+import { apiCall } from '../utils/api'
+import {
+  ArrowLeft, Send, Zap, RefreshCw, X, Globe, Hash, SlidersHorizontal,
+  Ghost, UserX, Flag, ShieldOff
+} from 'lucide-react'
 
 const LANGUAGES = [
   'Any', 'English', 'Hindi', 'Spanish', 'French', 'German',
@@ -20,42 +25,37 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
 }
 
-function Message({ msg, isMe }) {
+function MessageBubble({ msg, isMe }) {
   if (msg.type === 'system') {
     return (
-      <div style={{ display: 'flex', justifyContent: 'center', padding: '4px 16px' }}>
+      <div className="flex justify-center px-4 py-0.5">
         <div className="bubble-system">{msg.text}</div>
       </div>
     )
   }
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', padding: '2px 16px', gap: 2 }}>
-      {!isMe && <span style={{ fontSize: 11, color: 'var(--text-muted)', paddingLeft: 4 }}>Stranger</span>}
-      <div className={isMe ? 'bubble-me' : 'bubble-other'} style={{ fontSize: 14, lineHeight: 1.5 }}>
+    <div className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} px-4 py-0.5`}>
+      {!isMe && <span className="text-[11px] mb-0.5 pl-1" style={{ color: 'var(--text-muted)' }}>Stranger</span>}
+      <div className={isMe ? 'bubble-me' : 'bubble-other'}>
         {msg.text}
+        <div className={`flex mt-1 ${isMe ? 'justify-end' : ''}`}>
+          <span className="text-[10px] opacity-50">{formatTime(msg.timestamp)}</span>
+        </div>
       </div>
-      <span style={{ fontSize: 10, color: 'var(--text-dim)', paddingLeft: isMe ? 0 : 4, paddingRight: isMe ? 4 : 0 }}>
-        {formatTime(msg.timestamp)}
-      </span>
     </div>
   )
 }
 
-/* ---- Interest Tag Chip ---- */
 function InterestTag({ label, selected, onClick }) {
   return (
     <button
       onClick={onClick}
+      className="px-3 py-1 rounded-full text-xs font-medium transition-all"
       style={{
-        padding: '5px 14px',
-        borderRadius: 20,
-        fontSize: 12,
-        fontWeight: 500,
         border: selected ? '1.5px solid var(--accent)' : '1.5px solid var(--border)',
-        background: selected ? 'rgba(108,99,255,0.15)' : 'rgba(255,255,255,0.03)',
+        background: selected ? 'rgba(108,99,255,0.12)' : 'rgba(255,255,255,0.02)',
         color: selected ? 'var(--accent)' : 'var(--text-muted)',
         cursor: 'pointer',
-        transition: 'all 0.2s ease',
         whiteSpace: 'nowrap',
       }}
     >
@@ -64,27 +64,108 @@ function InterestTag({ label, selected, onClick }) {
   )
 }
 
-const STATUS = { IDLE: 'idle', WAITING: 'waiting', CHATTING: 'chatting', DISCONNECTED: 'disconnected' }
+function ReportModal({ onClose, token, toast }) {
+  const [reason, setReason] = useState('')
+  const [details, setDetails] = useState('')
+  const [submitting, setSubmitting] = useState(false)
+
+  const handleSubmit = async () => {
+    if (!reason) { toast('Select a reason', 'error'); return }
+    setSubmitting(true)
+    try {
+      await apiCall('/privacy/report', {
+        method: 'POST',
+        body: { username: 'anonymous_stranger', reason, details: `[Random Chat Report] ${details}` },
+      }, token)
+      toast('Report submitted', 'success')
+      onClose()
+    } catch (err) {
+      toast(err.message, 'error')
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  const reasons = [
+    { value: 'spam', label: '🗑️ Spam' },
+    { value: 'harassment', label: '😤 Harassment' },
+    { value: 'inappropriate', label: '🚫 Inappropriate Content' },
+    { value: 'other', label: '📋 Other' },
+  ]
+
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center justify-between mb-4">
+          <div className="flex items-center gap-2">
+            <Flag size={17} style={{ color: 'var(--warning)' }} />
+            <h3 className="font-bold text-base">Report Stranger</h3>
+          </div>
+          <button className="btn btn-ghost btn-icon" onClick={onClose}><X size={14} /></button>
+        </div>
+        <p className="text-sm mb-4" style={{ color: 'var(--text-muted)' }}>
+          Report this stranger for inappropriate behavior.
+        </p>
+        <div className="flex flex-col gap-2 mb-4">
+          {reasons.map((r) => (
+            <button
+              key={r.value}
+              onClick={() => setReason(r.value)}
+              className="p-2.5 rounded-xl text-sm font-medium text-left transition-all"
+              style={{
+                border: reason === r.value ? '2px solid var(--warning)' : '1px solid var(--border)',
+                background: reason === r.value ? 'rgba(245,158,11,0.08)' : 'rgba(255,255,255,0.02)',
+                color: reason === r.value ? 'var(--warning)' : 'var(--text-muted)',
+                cursor: 'pointer',
+              }}
+            >
+              {r.label}
+            </button>
+          ))}
+        </div>
+        <textarea
+          className="inp mb-4"
+          placeholder="Additional details (optional)…"
+          value={details}
+          onChange={(e) => setDetails(e.target.value)}
+          rows={3}
+          maxLength={500}
+          style={{ resize: 'vertical' }}
+        />
+        <div className="flex gap-2 justify-end">
+          <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+          <button className="btn btn-warn" onClick={handleSubmit} disabled={submitting || !reason}>
+            {submitting ? 'Submitting…' : 'Submit Report'}
+          </button>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+const STATUS = { IDLE: 'idle', WAITING: 'waiting', CHATTING: 'chatting', DISCONNECTED: 'disconnected', BLOCKED: 'blocked' }
 
 export default function RandomChat() {
   const { user, token } = useAuth()
+  const toast = useToast()
   const navigate = useNavigate()
 
   const [status, setStatus] = useState(STATUS.IDLE)
   const [messages, setMessages] = useState([])
   const [text, setText] = useState('')
   const [currentRoomId, setCurrentRoomId] = useState(null)
+  const [showReportModal, setShowReportModal] = useState(false)
 
-  // Matchmaking preferences (persisted across "Next" skips)
   const [language, setLanguage] = useState('Any')
   const [interests, setInterests] = useState([])
   const [customInterest, setCustomInterest] = useState('')
-  const [preference, setPreference] = useState('relaxed') // 'strict' | 'relaxed'
+  const [preference, setPreference] = useState('relaxed')
 
-  // Track the partner's socket id so "Next" can skip them
   const partnerSocketIdRef = useRef(null)
   const socketRef = useRef(null)
   const messagesEndRef = useRef(null)
+
+  const allowRandomMatch = user?.privacySettings?.allowRandomMatch !== false
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
@@ -97,7 +178,6 @@ export default function RandomChat() {
     socket.on('random_waiting', ({ message }) => {
       setStatus(STATUS.WAITING)
       setMessages(prev => {
-        // Only add if we don't already have this as the last message
         const last = prev[prev.length - 1]
         if (last && last.type === 'system' && last.text === message) return prev
         return [...prev, { type: 'system', text: message, timestamp: new Date(), _id: `sys_${Date.now()}` }]
@@ -121,42 +201,35 @@ export default function RandomChat() {
       setCurrentRoomId(null)
     })
 
+    socket.on('error', ({ message }) => toast(message, 'error'))
+
     return () => {
       socket.off('random_waiting')
       socket.off('random_matched')
       socket.off('receive_message')
       socket.off('random_partner_left')
+      socket.off('error')
     }
-  }, [token, user.username])
+  }, [token, user.username, toast])
 
-  /* ---- Start / Re-start matching ---- */
   const startMatching = useCallback((skipSocketId = null) => {
+    if (!allowRandomMatch) { setStatus(STATUS.BLOCKED); return }
     const socket = socketRef.current
     if (!socket) return
     setMessages([])
     setCurrentRoomId(null)
     partnerSocketIdRef.current = null
     setStatus(STATUS.WAITING)
+    socket.emit('join_random', { username: user.username, interests, language, preference, skipSocketId })
+  }, [user.username, interests, language, preference, allowRandomMatch])
 
-    socket.emit('join_random', {
-      username: user.username,
-      interests,
-      language,
-      preference,
-      skipSocketId,
-    })
-  }, [user.username, interests, language, preference])
-
-  /* ---- Add custom interest ---- */
   const addInterest = (tag) => {
     const t = tag.toLowerCase().trim()
     if (!t || interests.includes(t)) return
     setInterests(prev => [...prev, t])
   }
 
-  const removeInterest = (tag) => {
-    setInterests(prev => prev.filter(i => i !== tag))
-  }
+  const removeInterest = (tag) => setInterests(prev => prev.filter(i => i !== tag))
 
   const handleCustomInterestKey = (e) => {
     if (e.key === 'Enter' && customInterest.trim()) {
@@ -166,19 +239,11 @@ export default function RandomChat() {
     }
   }
 
-  /* ---- Send message ---- */
   const sendMessage = useCallback(() => {
     const socket = socketRef.current
     if (!socket || !text.trim() || !currentRoomId) return
-
-    const msg = { type: 'text', text: text.trim(), timestamp: new Date(), _id: `me_${Date.now()}`, sender: user.username }
-    setMessages(prev => [...prev, msg])
-    socket.emit('send_message', {
-      roomId: currentRoomId,
-      text: text.trim(),
-      isAnonymous: true,
-      displayName: 'You',
-    })
+    setMessages(prev => [...prev, { type: 'text', text: text.trim(), timestamp: new Date(), _id: `me_${Date.now()}`, sender: user.username }])
+    socket.emit('send_message', { roomId: currentRoomId, text: text.trim(), isAnonymous: true, displayName: 'You' })
     setText('')
   }, [text, currentRoomId, user.username])
 
@@ -186,69 +251,74 @@ export default function RandomChat() {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
   }
 
-  /* ---- Disconnect ---- */
   const handleDisconnect = () => {
-    const socket = socketRef.current
-    if (socket) socket.emit('leave_random')
+    socketRef.current?.emit('leave_random')
     setStatus(STATUS.DISCONNECTED)
     setCurrentRoomId(null)
-    setMessages(prev => [...prev, { type: 'system', text: 'You disconnected from the stranger.', timestamp: new Date(), _id: `dc_${Date.now()}` }])
+    setMessages(prev => [...prev, { type: 'system', text: 'You disconnected.', timestamp: new Date(), _id: `dc_${Date.now()}` }])
   }
 
-  /* ---- Next: skip current partner and instantly re-queue ---- */
+  const handleBlockStranger = () => {
+    handleDisconnect()
+    toast('Stranger blocked for this session', 'info')
+  }
+
   const handleNext = () => {
-    const socket = socketRef.current
     const prevPartner = partnerSocketIdRef.current
-    if (socket) socket.emit('leave_random')
+    socketRef.current?.emit('leave_random')
     setCurrentRoomId(null)
-    setMessages([{ type: 'system', text: '⏭️ Skipped — finding a new match...', timestamp: new Date(), _id: `skip_${Date.now()}` }])
+    setMessages([{ type: 'system', text: '⏭️ Finding a new match…', timestamp: new Date(), _id: `skip_${Date.now()}` }])
     setStatus(STATUS.WAITING)
-    // Instantly re-queue with skip
     setTimeout(() => startMatching(prevPartner), 100)
   }
 
-  /* ---- Cancel waiting ---- */
   const handleCancelWait = () => {
-    const socket = socketRef.current
-    if (socket) socket.emit('leave_random')
+    socketRef.current?.emit('leave_random')
     setStatus(STATUS.IDLE)
     setMessages([])
   }
 
   return (
     <div className="h-screen flex flex-col" style={{ background: 'var(--bg)' }}>
-      {/* Header */}
+      {/* ---- Header ---- */}
       <header className="glass-strong shrink-0 border-b" style={{ borderColor: 'var(--border)' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 16px', height: 56 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+        <div className="flex items-center justify-between px-4 h-14">
+          <div className="flex items-center gap-3">
             <button className="btn btn-ghost btn-icon" onClick={() => { handleDisconnect(); navigate('/') }}>
-              <ArrowLeft size={16} />
+              <ArrowLeft size={15} />
             </button>
             <div>
-              <div style={{ fontWeight: 700, fontSize: 15, display: 'flex', alignItems: 'center', gap: 6 }}>
-                <Zap size={14} style={{ color: 'var(--accent2)' }} /> Random Chat
+              <div className="flex items-center gap-1.5 font-bold text-sm">
+                <Zap size={13} style={{ color: 'var(--accent2)' }} /> Random Chat
               </div>
-              <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>
+              <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                 {status === STATUS.IDLE && 'Configure & connect'}
-                {status === STATUS.WAITING && '🔍 Matching you with someone...'}
-                {status === STATUS.CHATTING && '🟢 Connected with stranger'}
+                {status === STATUS.WAITING && '🔍 Matching…'}
+                {status === STATUS.CHATTING && '🟢 Connected'}
                 {status === STATUS.DISCONNECTED && '🔴 Disconnected'}
+                {status === STATUS.BLOCKED && '🔒 Disabled'}
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div className="flex gap-1.5">
             {status === STATUS.WAITING && (
-              <button className="btn btn-ghost" style={{ fontSize: 12, height: 34, padding: '0 12px' }} onClick={handleCancelWait}>
+              <button className="btn btn-ghost text-xs" style={{ height: 32, padding: '0 10px' }} onClick={handleCancelWait}>
                 <X size={13} /> Cancel
               </button>
             )}
             {status === STATUS.CHATTING && (
               <>
-                <button className="btn btn-ghost" style={{ fontSize: 12, height: 34, padding: '0 12px' }} onClick={handleNext}>
-                  <RefreshCw size={13} /> Next
+                <button className="btn btn-ghost btn-icon" style={{ width: 32, height: 32 }} onClick={() => setShowReportModal(true)} title="Report">
+                  <Flag size={13} />
                 </button>
-                <button className="btn btn-danger" style={{ fontSize: 12, height: 34, padding: '0 12px' }} onClick={handleDisconnect}>
-                  <X size={13} /> Stop
+                <button className="btn btn-ghost btn-icon" style={{ width: 32, height: 32 }} onClick={handleBlockStranger} title="Block">
+                  <UserX size={13} />
+                </button>
+                <button className="btn btn-ghost text-xs" style={{ height: 32, padding: '0 10px' }} onClick={handleNext}>
+                  <RefreshCw size={12} /> Next
+                </button>
+                <button className="btn btn-danger text-xs" style={{ height: 32, padding: '0 10px' }} onClick={handleDisconnect}>
+                  <X size={12} /> End
                 </button>
               </>
             )}
@@ -256,43 +326,58 @@ export default function RandomChat() {
         </div>
       </header>
 
-      {/* Body */}
-      <div style={{ flex: 1, overflowY: 'auto', paddingTop: 12, paddingBottom: 4 }}>
+      {/* ---- Body ---- */}
+      <div className="flex-1 overflow-y-auto pt-3 pb-1">
 
-        {/* ============ IDLE — Matchmaking Config ============ */}
+        {/* BLOCKED */}
+        {status === STATUS.BLOCKED && (
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center max-w-sm px-5 animate-fade-in">
+              <ShieldOff size={40} className="mx-auto mb-4 opacity-50" style={{ color: 'var(--warning)' }} />
+              <h2 className="font-bold text-lg mb-2">Random Matching Disabled</h2>
+              <p className="text-sm mb-5" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                Enable random matching in your privacy settings to start chatting.
+              </p>
+              <div className="flex gap-2 justify-center">
+                <button className="btn btn-primary" onClick={() => navigate('/privacy')}><Zap size={14} /> Privacy Settings</button>
+                <button className="btn btn-ghost" onClick={() => navigate('/')}><ArrowLeft size={14} /> Home</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* IDLE — Config */}
         {status === STATUS.IDLE && (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center', maxWidth: 460, width: '100%', padding: '0 20px' }}>
-              <div style={{ fontSize: 52, marginBottom: 8 }}>🎲</div>
-              <h2 style={{ fontWeight: 700, fontSize: 22, marginBottom: 4 }}>Meet a Stranger</h2>
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 24, lineHeight: 1.6 }}>
-                Set your preferences below for smarter matching. The more you share, the better the match.
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center max-w-md w-full px-5 animate-fade-in">
+              <div className="text-5xl mb-3">🎲</div>
+              <h2 className="font-bold font-display text-xl mb-1">Meet a Stranger</h2>
+              <p className="text-xs mb-6" style={{ color: 'var(--text-muted)', lineHeight: 1.6 }}>
+                Set preferences for smarter matching.
               </p>
 
+              {!allowRandomMatch && (
+                <div className="anon-banner mb-5 justify-center">
+                  <ShieldOff size={15} />
+                  <span className="text-xs">Random matching is disabled in your <button onClick={() => navigate('/privacy')} className="underline font-semibold" style={{ background: 'none', border: 'none', color: 'inherit', cursor: 'pointer' }}>privacy settings</button></span>
+                </div>
+              )}
+
               {/* Language */}
-              <div style={{ textAlign: 'left', marginBottom: 18 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>
-                  <Globe size={14} /> Language
-                </label>
-                <select
-                  className="inp"
-                  value={language}
-                  onChange={e => setLanguage(e.target.value)}
-                  style={{ width: '100%', height: 40, fontSize: 13, cursor: 'pointer' }}
-                >
+              <div className="text-left mb-4">
+                <label className="flex items-center gap-1.5 text-sm font-semibold mb-1.5"><Globe size={13} /> Language</label>
+                <select className="inp w-full text-sm" style={{ height: 40, cursor: 'pointer' }} value={language} onChange={e => setLanguage(e.target.value)}>
                   {LANGUAGES.map(l => <option key={l} value={l}>{l}</option>)}
                 </select>
               </div>
 
               {/* Interests */}
-              <div style={{ textAlign: 'left', marginBottom: 18 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>
-                  <Hash size={14} /> Interests
-                  <span style={{ fontWeight: 400, color: 'var(--text-dim)', fontSize: 11, marginLeft: 4 }}>
-                    ({interests.length} selected)
-                  </span>
+              <div className="text-left mb-4">
+                <label className="flex items-center gap-1.5 text-sm font-semibold mb-1.5">
+                  <Hash size={13} /> Interests
+                  <span className="text-[11px] font-normal opacity-50 ml-1">({interests.length} selected)</span>
                 </label>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 8 }}>
+                <div className="flex flex-wrap gap-1.5 mb-2">
                   {INTEREST_SUGGESTIONS.map(tag => (
                     <InterestTag
                       key={tag}
@@ -303,15 +388,15 @@ export default function RandomChat() {
                   ))}
                 </div>
                 <input
-                  className="inp"
-                  style={{ width: '100%', height: 36, fontSize: 12 }}
-                  placeholder="Type custom interest and press Enter..."
+                  className="inp w-full text-xs"
+                  style={{ height: 34 }}
+                  placeholder="Custom interest — press Enter"
                   value={customInterest}
                   onChange={e => setCustomInterest(e.target.value)}
                   onKeyDown={handleCustomInterestKey}
                 />
                 {interests.filter(i => !INTEREST_SUGGESTIONS.includes(i)).length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginTop: 8 }}>
+                  <div className="flex flex-wrap gap-1.5 mt-2">
                     {interests.filter(i => !INTEREST_SUGGESTIONS.includes(i)).map(tag => (
                       <InterestTag key={tag} label={tag} selected onClick={() => removeInterest(tag)} />
                     ))}
@@ -319,75 +404,61 @@ export default function RandomChat() {
                 )}
               </div>
 
-              {/* Preference toggle */}
-              <div style={{ textAlign: 'left', marginBottom: 24 }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 600, marginBottom: 6, color: 'var(--text)' }}>
-                  <SlidersHorizontal size={14} /> Match Strictness
-                </label>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <button
-                    onClick={() => setPreference('relaxed')}
-                    style={{
-                      flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                      border: preference === 'relaxed' ? '2px solid var(--accent)' : '2px solid var(--border)',
-                      background: preference === 'relaxed' ? 'rgba(108,99,255,0.1)' : 'transparent',
-                      color: preference === 'relaxed' ? 'var(--accent)' : 'var(--text-muted)',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    🌐 Relaxed
-                    <div style={{ fontSize: 10, fontWeight: 400, marginTop: 2, opacity: 0.7 }}>Match anyone if no exact fit</div>
-                  </button>
-                  <button
-                    onClick={() => setPreference('strict')}
-                    style={{
-                      flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                      border: preference === 'strict' ? '2px solid #f59e0b' : '2px solid var(--border)',
-                      background: preference === 'strict' ? 'rgba(245,158,11,0.1)' : 'transparent',
-                      color: preference === 'strict' ? '#f59e0b' : 'var(--text-muted)',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    🎯 Strict
-                    <div style={{ fontSize: 10, fontWeight: 400, marginTop: 2, opacity: 0.7 }}>Only matching interests/lang</div>
-                  </button>
+              {/* Strictness */}
+              <div className="text-left mb-5">
+                <label className="flex items-center gap-1.5 text-sm font-semibold mb-1.5"><SlidersHorizontal size={13} /> Match Strictness</label>
+                <div className="flex gap-2">
+                  {[
+                    { key: 'relaxed', emoji: '🌐', label: 'Relaxed', sub: 'Match anyone', color: 'var(--accent)' },
+                    { key: 'strict', emoji: '🎯', label: 'Strict', sub: 'Only similar interests', color: 'var(--warning)' },
+                  ].map(opt => (
+                    <button
+                      key={opt.key}
+                      onClick={() => setPreference(opt.key)}
+                      className="flex-1 py-2.5 rounded-xl text-sm font-semibold transition-all text-center"
+                      style={{
+                        border: preference === opt.key ? `2px solid ${opt.color}` : '2px solid var(--border)',
+                        background: preference === opt.key ? `${opt.color}15` : 'transparent',
+                        color: preference === opt.key ? opt.color : 'var(--text-muted)',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {opt.emoji} {opt.label}
+                      <div className="text-[10px] font-normal mt-0.5 opacity-60">{opt.sub}</div>
+                    </button>
+                  ))}
                 </div>
               </div>
 
               <button
-                className="btn btn-primary"
-                style={{ height: 50, fontSize: 16, padding: '0 32px', background: 'linear-gradient(135deg, #6c63ff, #38bdf8)', width: '100%' }}
+                className="btn btn-primary w-full"
+                style={{ height: 46, fontSize: 15, background: 'linear-gradient(135deg, #6c63ff, #38bdf8)' }}
                 onClick={() => startMatching(null)}
+                disabled={!allowRandomMatch}
               >
-                <Zap size={18} /> Start Chatting
+                <Zap size={17} /> Start Chatting
               </button>
             </div>
           </div>
         )}
 
-        {/* ============ WAITING ============ */}
+        {/* WAITING */}
         {status === STATUS.WAITING && (
-          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center', maxWidth: 360 }}>
-              <div style={{ width: 60, height: 60, borderRadius: '50%', border: '3px solid rgba(108,99,255,0.3)', borderTopColor: 'var(--accent)', animation: 'spin 1s linear infinite', margin: '0 auto 20px' }} />
-              <p style={{ fontWeight: 600, marginBottom: 6 }}>Finding your best match...</p>
-              <p style={{ color: 'var(--text-muted)', fontSize: 13, marginBottom: 12 }}>Usually takes just a few seconds</p>
+          <div className="h-full flex items-center justify-center">
+            <div className="text-center max-w-sm animate-fade-in">
+              <div className="spinner spinner-lg mx-auto mb-5" style={{ color: 'var(--accent)', borderColor: 'rgba(108,99,255,0.2)', borderTopColor: 'var(--accent)' }} />
+              <p className="font-semibold mb-1">Finding your best match…</p>
+              <p className="text-xs mb-3" style={{ color: 'var(--text-muted)' }}>Usually just a few seconds</p>
               {(interests.length > 0 || language !== 'Any') && (
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 8 }}>
+                <div className="flex flex-wrap gap-1.5 justify-center mt-2">
                   {language !== 'Any' && (
-                    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, background: 'rgba(108,99,255,0.12)', color: 'var(--accent)' }}>
-                      🌐 {language}
-                    </span>
+                    <span className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'rgba(108,99,255,0.1)', color: 'var(--accent)' }}>🌐 {language}</span>
                   )}
                   {interests.slice(0, 6).map(i => (
-                    <span key={i} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, background: 'rgba(56,189,248,0.12)', color: '#38bdf8' }}>
-                      #{i}
-                    </span>
+                    <span key={i} className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'rgba(56,189,248,0.1)', color: '#38bdf8' }}>#{i}</span>
                   ))}
                   {interests.length > 6 && (
-                    <span style={{ fontSize: 11, padding: '3px 10px', borderRadius: 12, background: 'rgba(255,255,255,0.06)', color: 'var(--text-dim)' }}>
-                      +{interests.length - 6} more
-                    </span>
+                    <span className="text-[11px] px-2.5 py-1 rounded-full" style={{ background: 'rgba(255,255,255,0.05)', color: 'var(--text-dim)' }}>+{interests.length - 6}</span>
                   )}
                 </div>
               )}
@@ -395,55 +466,59 @@ export default function RandomChat() {
           </div>
         )}
 
-        {/* ============ CHATTING / DISCONNECTED ============ */}
+        {/* CHATTING / DISCONNECTED */}
         {(status === STATUS.CHATTING || status === STATUS.DISCONNECTED) && (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+          <div className="flex flex-col gap-0.5">
             {messages.map((msg, i) => (
-              <Message key={msg._id || i} msg={msg} isMe={msg.sender === user.username} />
+              <MessageBubble key={msg._id || i} msg={msg} isMe={msg.sender === user.username} />
             ))}
             <div ref={messagesEndRef} />
           </div>
         )}
       </div>
 
-      {/* Input */}
-      {(status === STATUS.CHATTING) && (
-        <div className="glass-strong border-t shrink-0" style={{ borderColor: 'var(--border)', padding: '10px 16px' }}>
-          <div style={{ display: 'flex', gap: 8, alignItems: 'center', maxWidth: 900, margin: '0 auto' }}>
+      {/* ---- Input ---- */}
+      {status === STATUS.CHATTING && (
+        <div className="glass-strong border-t shrink-0" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex gap-2 items-center px-4 py-2.5 max-w-3xl mx-auto">
             <input
-              className="inp"
-              style={{ flex: 1, height: 42 }}
-              placeholder="Say something to the stranger..."
+              className="inp flex-1"
+              style={{ height: 40 }}
+              placeholder="Say something…"
               value={text}
               onChange={e => setText(e.target.value)}
               onKeyDown={handleKeyDown}
             />
             <button
               className="btn btn-primary btn-icon"
-              style={{ height: 42, width: 42, opacity: !text.trim() ? 0.5 : 1 }}
+              style={{ width: 40, height: 40 }}
               onClick={sendMessage}
               disabled={!text.trim()}
             >
               <Send size={15} />
             </button>
           </div>
-          <p style={{ textAlign: 'center', fontSize: 11, color: 'var(--text-dim)', marginTop: 5 }}>
+          <p className="text-center text-[11px] pb-1.5" style={{ color: 'var(--text-dim)' }}>
             🎭 You are completely anonymous
           </p>
         </div>
       )}
 
       {status === STATUS.DISCONNECTED && (
-        <div className="glass-strong border-t shrink-0" style={{ borderColor: 'var(--border)', padding: '12px 16px' }}>
-          <div style={{ display: 'flex', gap: 8, justifyContent: 'center' }}>
-            <button className="btn btn-primary" onClick={() => { setStatus(STATUS.IDLE); setMessages([]); }}>
-              <Zap size={15} /> Find New Stranger
+        <div className="glass-strong border-t shrink-0 px-4 py-3" style={{ borderColor: 'var(--border)' }}>
+          <div className="flex gap-2 justify-center">
+            <button className="btn btn-primary" onClick={() => { setStatus(STATUS.IDLE); setMessages([]) }}>
+              <Zap size={14} /> New Stranger
             </button>
             <button className="btn btn-ghost" onClick={() => navigate('/')}>
-              <ArrowLeft size={15} /> Back to Home
+              <ArrowLeft size={14} /> Home
             </button>
           </div>
         </div>
+      )}
+
+      {showReportModal && (
+        <ReportModal onClose={() => setShowReportModal(false)} token={token} toast={toast} />
       )}
     </div>
   )

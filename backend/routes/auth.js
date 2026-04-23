@@ -6,6 +6,22 @@ const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
 
+const sanitizeUser = (user) => ({
+  id: user._id,
+  username: user.username,
+  bio: user.bio || "",
+  profilePicture: user.profilePicture || user.avatar || "",
+  interests: Array.isArray(user.interests) ? user.interests : [],
+  showActiveStatus: user.showActiveStatus !== false,
+  privacySettings: {
+    showProfile: user.privacySettings?.showProfile !== false,
+    showOnlineStatus: user.privacySettings?.showOnlineStatus !== false,
+    allowRandomMatch: user.privacySettings?.allowRandomMatch !== false,
+    anonymousMode: user.privacySettings?.anonymousMode === true,
+  },
+  anonymousId: user.anonymousId || null,
+});
+
 /* -------- REGISTER -------- */
 router.post("/register", async (req, res) => {
   try {
@@ -39,7 +55,7 @@ router.post("/register", async (req, res) => {
     res.status(201).json({
       message: "Registered successfully",
       token,
-      user: { id: newUser._id, username: newUser.username },
+      user: sanitizeUser(newUser),
     });
   } catch (err) {
     console.error("Register error:", err);
@@ -80,7 +96,7 @@ router.post("/login", async (req, res) => {
     res.json({
       message: "Login successful",
       token,
-      user: { id: user._id, username: user.username },
+      user: sanitizeUser(user),
     });
   } catch (err) {
     console.error("Login error:", err);
@@ -104,6 +120,69 @@ router.post("/logout", authMiddleware, async (req, res) => {
 /* -------- VERIFY TOKEN -------- */
 router.get("/verify", authMiddleware, (req, res) => {
   res.json({ valid: true, user: req.user });
+});
+
+router.get("/profile", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select("-password");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({ user: sanitizeUser(user) });
+  } catch (err) {
+    console.error("Get profile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+router.put("/profile", authMiddleware, async (req, res) => {
+  try {
+    const { bio = "", profilePicture = "", interests = [], showActiveStatus = true } = req.body;
+
+    if (typeof bio !== "string") {
+      return res.status(400).json({ message: "Bio must be a string" });
+    }
+    if (typeof profilePicture !== "string") {
+      return res.status(400).json({ message: "Profile picture must be a string" });
+    }
+    if (!Array.isArray(interests)) {
+      return res.status(400).json({ message: "Interests must be an array" });
+    }
+    if (typeof showActiveStatus !== "boolean") {
+      return res.status(400).json({ message: "Active visibility must be true or false" });
+    }
+
+    const normalizedInterests = interests
+      .map((interest) => String(interest || "").trim())
+      .filter(Boolean)
+      .slice(0, 12);
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        bio: bio.trim().slice(0, 160),
+        profilePicture: profilePicture.trim(),
+        avatar: profilePicture.trim(),
+        interests: normalizedInterests,
+        showActiveStatus,
+        "privacySettings.showOnlineStatus": showActiveStatus,
+      },
+      { new: true, runValidators: true }
+    ).select("-password");
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    res.json({
+      message: "Profile updated successfully",
+      user: sanitizeUser(user),
+    });
+  } catch (err) {
+    console.error("Update profile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
 });
 
 module.exports = router;

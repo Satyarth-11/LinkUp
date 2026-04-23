@@ -2,9 +2,23 @@ const express = require("express");
 const bcrypt = require("bcryptjs");
 const Room = require("../models/Room");
 const Message = require("../models/Message");
+const User = require("../models/User");
 const authMiddleware = require("../middleware/auth");
 
 const router = express.Router();
+
+const getUniqueMembers = (members = []) => {
+  const seen = new Set();
+
+  return members.filter((member) => {
+    const username = member?.username?.toLowerCase();
+    if (!username || seen.has(username)) {
+      return false;
+    }
+    seen.add(username);
+    return true;
+  });
+};
 
 /* ---- Create Group Room ---- */
 router.post("/create-group", authMiddleware, async (req, res) => {
@@ -89,18 +103,48 @@ router.post("/private", authMiddleware, async (req, res) => {
       return res.status(400).json({ message: "Cannot chat with yourself" });
     }
 
+    const normalizedTarget = targetUsername.toLowerCase().trim();
+
+    // Check block status in both directions
+    const [self, target] = await Promise.all([
+      User.findById(req.user.id).select("blockedUsers"),
+      User.findOne({ username: normalizedTarget }).select("blockedUsers"),
+    ]);
+
+    if (!target) {
+      return res.status(404).json({ message: "User not found" });
+    }
+
+    const youBlockedThem = self?.blockedUsers?.some(
+      (b) => b.username === normalizedTarget
+    );
+    const theyBlockedYou = target?.blockedUsers?.some(
+      (b) => b.username === currentUser
+    );
+
+    if (youBlockedThem) {
+      return res
+        .status(403)
+        .json({ message: "You have blocked this user. Unblock them first." });
+    }
+    if (theyBlockedYou) {
+      return res
+        .status(403)
+        .json({ message: "This user is not available for chat." });
+    }
+
     // Generate consistent room ID for two users
-    const sorted = [currentUser, targetUsername].sort();
+    const sorted = [currentUser, normalizedTarget].sort();
     const roomId = `PRIV_${sorted[0]}_${sorted[1]}`.toUpperCase();
 
     let room = await Room.findOne({ roomId });
     if (!room) {
       room = new Room({
         roomId,
-        name: `${currentUser} & ${targetUsername}`,
+        name: `${currentUser} & ${normalizedTarget}`,
         type: "private",
         createdBy: currentUser,
-        members: [{ username: currentUser }, { username: targetUsername }],
+        members: [{ username: currentUser }, { username: normalizedTarget }],
       });
       await room.save();
     }
@@ -119,12 +163,20 @@ router.get("/:roomId", authMiddleware, async (req, res) => {
     if (!room) {
       return res.status(404).json({ message: "Room not found" });
     }
+    const uniqueMembers = getUniqueMembers(room.members);
+
+    if (uniqueMembers.length !== room.members.length) {
+      room.members = uniqueMembers;
+      await room.save();
+    }
+
     res.json({
       roomId: room.roomId,
       name: room.name,
       type: room.type,
       createdBy: room.createdBy,
-      memberCount: room.members.length,
+      memberCount: uniqueMembers.length,
+      members: uniqueMembers.map((member) => member.username),
     });
   } catch (err) {
     res.status(500).json({ message: "Server error" });

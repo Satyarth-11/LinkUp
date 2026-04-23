@@ -8,11 +8,19 @@ export function AuthProvider({ children }) {
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    const storedToken = localStorage.getItem('linkup_token')
-    const storedUser = localStorage.getItem('linkup_user')
-    if (storedToken && storedUser) {
-      setToken(storedToken)
-      setUser(JSON.parse(storedUser))
+    try {
+      const storedToken = localStorage.getItem('linkup_token')
+      const storedUser = localStorage.getItem('linkup_user')
+      if (storedToken && storedUser) {
+        const parsed = JSON.parse(storedUser)
+        if (parsed && typeof parsed === 'object') {
+          setToken(storedToken)
+          setUser(parsed)
+        }
+      }
+    } catch {
+      localStorage.removeItem('linkup_token')
+      localStorage.removeItem('linkup_user')
     }
     setLoading(false)
   }, [])
@@ -21,6 +29,11 @@ export function AuthProvider({ children }) {
     setUser(userData)
     setToken(userToken)
     localStorage.setItem('linkup_token', userToken)
+    localStorage.setItem('linkup_user', JSON.stringify(userData))
+  }
+
+  const updateUser = (userData) => {
+    setUser(userData)
     localStorage.setItem('linkup_user', JSON.stringify(userData))
   }
 
@@ -40,7 +53,7 @@ export function AuthProvider({ children }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, loading }}>
+    <AuthContext.Provider value={{ user, token, login, logout, updateUser, loading }}>
       {children}
     </AuthContext.Provider>
   )

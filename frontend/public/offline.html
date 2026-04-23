@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+  <title>LinkUp — Offline</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      min-height: 100vh;
+      background: #050510;
+      color: #f0f0ff;
+      font-family: 'Inter', system-ui, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      padding: 24px;
+    }
+    .container { max-width: 360px; }
+    .icon { font-size: 56px; margin-bottom: 20px; opacity: 0.6; }
+    h1 {
+      font-size: 28px;
+      font-weight: 800;
+      margin-bottom: 8px;
+      background: linear-gradient(135deg, #7c3aed, #a78bfa, #06b6d4);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    p { color: #8888b8; font-size: 14px; line-height: 1.6; margin-bottom: 24px; }
+    button {
+      background: linear-gradient(135deg, #7c3aed, #06b6d4);
+      color: #fff; border: none;
+      padding: 14px 32px; border-radius: 12px;
+      font-size: 15px; font-weight: 700;
+      cursor: pointer; font-family: inherit;
+    }
+    button:active { transform: scale(0.96); }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="icon">📡</div>
+    <h1>You're Offline</h1>
+    <p>LinkUp needs an internet connection for real-time messaging. Check your connection and try again.</p>
+    <button onclick="location.reload()">Retry Connection</button>
+  </div>
+</body>
+</html>

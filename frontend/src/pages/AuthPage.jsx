@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiCall } from '../utils/api'
-import { Eye, EyeOff, Zap, Shield, Users, MessageSquare } from 'lucide-react'
+import { Eye, EyeOff, Zap, Shield, Users, MessageSquare, ArrowRight } from 'lucide-react'
 
 export default function AuthPage() {
   const [mode, setMode] = useState('login')
@@ -35,62 +35,94 @@ export default function AuthPage() {
   }
 
   const features = [
-    { icon: Shield, label: 'Encrypted', desc: 'bcrypt password hashing' },
-    { icon: MessageSquare, label: 'Real-time', desc: 'Socket.IO messaging' },
-    { icon: Users, label: 'Group Chat', desc: 'Password-protected rooms' },
-    { icon: Zap, label: 'Anonymous', desc: 'Random stranger chat' },
+    { icon: Shield, label: 'End-to-End Encrypted', desc: 'Military-grade password hashing keeps your data safe', color: '#7c3aed' },
+    { icon: MessageSquare, label: 'Real-time Messaging', desc: 'Instant delivery via WebSocket connections', color: '#06b6d4' },
+    { icon: Users, label: 'Group Rooms', desc: 'Create password-protected rooms for your team', color: '#ec4899' },
+    { icon: Zap, label: 'Anonymous Mode', desc: 'Chat with strangers without revealing identity', color: '#f59e0b' },
   ]
 
   return (
-    <div className="min-h-screen mesh-bg flex">
-      {/* Left panel */}
-      <div className="hidden lg:flex flex-col justify-center px-16 w-1/2">
-        <div className="max-w-md">
-          <div className="mb-8">
-            <h1 className="text-6xl font-bold mb-3">
+    <div className="min-h-screen flex relative overflow-hidden" style={{ background: 'var(--bg)' }}>
+      {/* Animated background orbs */}
+      <div className="orb-bg">
+        <div className="orb orb-1" />
+        <div className="orb orb-2" />
+        <div className="orb orb-3" />
+      </div>
+
+      {/* ---- Left brand panel ---- */}
+      <div className="hidden lg:flex flex-col justify-center px-16 w-[52%] relative z-10">
+        <div className="max-w-lg">
+          <div className="animate-fade-in">
+            <div className="inline-flex items-center gap-2 chip mb-6" style={{ borderColor: 'rgba(124,58,237,0.3)', color: 'var(--accent2)' }}>
+              <div className="w-2 h-2 rounded-full bg-green-400 animate-pulse" />
+              <span>Secure & Encrypted</span>
+            </div>
+
+            <h1 className="text-7xl font-extrabold font-display mb-5 tracking-tight leading-[0.95]">
               <span className="grad-text">Link</span>
-              <span style={{ color: 'var(--text)' }}>Up</span>
+              <span className="text-white">Up</span>
             </h1>
-            <p style={{ color: 'var(--text-muted)', fontSize: 18, lineHeight: 1.6 }}>
-              A secure real-time communication platform for private, group, and anonymous conversations.
+            <p className="text-xl leading-relaxed mb-12" style={{ color: 'var(--text-muted)' }}>
+              The next generation of secure messaging.<br />
+              Private rooms. Anonymous chats. Zero compromises.
             </p>
           </div>
+
           <div className="grid grid-cols-2 gap-4">
-            {features.map(({ icon: Icon, label, desc }) => (
-              <div key={label} className="glass rounded-xl p-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Icon size={16} style={{ color: 'var(--accent2)' }} />
-                  <span style={{ fontWeight: 600, fontSize: 14 }}>{label}</span>
+            {features.map(({ icon: Icon, label, desc, color }, i) => (
+              <div
+                key={label}
+                className={`glass-card p-5 cursor-default animate-slide-up stagger-${i + 1}`}
+              >
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-3"
+                  style={{ background: `${color}15`, border: `1px solid ${color}25` }}
+                >
+                  <Icon size={18} style={{ color }} />
                 </div>
-                <p style={{ color: 'var(--text-muted)', fontSize: 12 }}>{desc}</p>
+                <h3 className="font-bold text-sm mb-1 text-white">{label}</h3>
+                <p className="text-xs leading-relaxed" style={{ color: 'var(--text-muted)' }}>{desc}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* Right panel — auth form */}
-      <div className="flex-1 flex items-center justify-center px-6">
-        <div className="w-full max-w-sm">
+      {/* ---- Right auth form ---- */}
+      <div className="flex-1 flex items-center justify-center px-5 sm:px-8 relative z-10">
+        <div className="w-full max-w-[400px]">
           {/* Mobile logo */}
-          <div className="lg:hidden text-center mb-8">
-            <h1 className="text-4xl font-bold">
+          <div className="lg:hidden text-center mb-10 animate-fade-in">
+            <h1 className="text-5xl font-extrabold font-display mb-2">
               <span className="grad-text">Link</span>
-              <span style={{ color: 'var(--text)' }}>Up</span>
+              <span className="text-white">Up</span>
             </h1>
+            <p className="text-sm" style={{ color: 'var(--text-muted)' }}>Secure real-time messaging</p>
           </div>
 
-          <div className="glass-strong rounded-2xl p-8 animate-fade-in">
+          <div className="glass-strong rounded-3xl p-8 sm:p-9 animate-slide-up glow">
+            {/* Header */}
+            <div className="text-center mb-7">
+              <h2 className="text-2xl font-bold mb-1">
+                {mode === 'login' ? 'Welcome back' : 'Create account'}
+              </h2>
+              <p className="text-sm" style={{ color: 'var(--text-muted)' }}>
+                {mode === 'login' ? 'Sign in to continue your conversations' : 'Join LinkUp in seconds'}
+              </p>
+            </div>
+
             {/* Toggle */}
-            <div className="flex rounded-xl p-1 mb-8" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+            <div className="flex rounded-xl p-1 mb-7" style={{ background: 'rgba(124,58,237,0.06)', border: '1px solid var(--border)' }}>
               {['login', 'register'].map(m => (
                 <button
                   key={m}
                   onClick={() => setMode(m)}
-                  className="flex-1 py-2 rounded-lg text-sm font-semibold transition-all"
+                  className="flex-1 py-2.5 rounded-lg text-sm font-semibold transition-all"
                   style={{
-                    background: mode === m ? 'linear-gradient(135deg, var(--accent), #5b52f0)' : 'transparent',
+                    background: mode === m ? 'linear-gradient(135deg, #7c3aed, #6d28d9)' : 'transparent',
                     color: mode === m ? '#fff' : 'var(--text-muted)',
+                    boxShadow: mode === m ? '0 2px 12px rgba(124,58,237,0.3)' : 'none',
                   }}
                 >
                   {m === 'login' ? 'Sign In' : 'Sign Up'}
@@ -98,70 +130,83 @@ export default function AuthPage() {
               ))}
             </div>
 
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-5">
               <div>
-                <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 6, fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                <label className="block text-xs font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
                   Username
                 </label>
                 <input
                   className="inp"
                   value={username}
                   onChange={e => setUsername(e.target.value)}
-                  placeholder="yourname"
+                  placeholder="Enter your username"
                   autoComplete="username"
+                  autoFocus
                   maxLength={20}
                 />
               </div>
 
               <div>
-                <label style={{ fontSize: 12, color: 'var(--text-muted)', display: 'block', marginBottom: 6, fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                <label className="block text-xs font-medium uppercase tracking-wider mb-2" style={{ color: 'var(--text-muted)' }}>
                   Password
                 </label>
-                <div style={{ position: 'relative' }}>
+                <div className="relative">
                   <input
-                    className="inp"
+                    className="inp pr-11"
                     type={showPass ? 'text' : 'password'}
                     value={password}
                     onChange={e => setPassword(e.target.value)}
                     placeholder="••••••••"
                     autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
-                    style={{ paddingRight: 42 }}
                   />
                   <button
                     type="button"
                     onClick={() => setShowPass(v => !v)}
-                    style={{ position: 'absolute', right: 12, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer' }}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 rounded-lg transition-all hover:bg-white/5"
+                    style={{ color: 'var(--text-dim)', background: 'none', border: 'none', cursor: 'pointer' }}
                   >
-                    {showPass ? <EyeOff size={16} /> : <Eye size={16} />}
+                    {showPass ? <EyeOff size={15} /> : <Eye size={15} />}
                   </button>
                 </div>
                 {mode === 'register' && (
-                  <p style={{ fontSize: 11, color: 'var(--text-dim)', marginTop: 5 }}>At least 6 characters</p>
+                  <p className="text-xs mt-1.5" style={{ color: 'var(--text-dim)' }}>Minimum 6 characters</p>
                 )}
               </div>
 
               <button
                 type="submit"
-                className="btn btn-primary w-full"
-                style={{ height: 46, marginTop: 8, fontSize: 15, opacity: loading ? 0.7 : 1 }}
+                className="btn btn-glow w-full mt-2"
+                style={{ height: 48, fontSize: 15 }}
                 disabled={loading}
               >
                 {loading ? (
-                  <span style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 16, height: 16, border: '2px solid rgba(255,255,255,0.3)', borderTopColor: '#fff', borderRadius: '50%', animation: 'spin 0.8s linear infinite', display: 'inline-block' }} />
-                    {mode === 'login' ? 'Signing in...' : 'Creating account...'}
+                  <span className="flex items-center gap-2.5">
+                    <span className="spinner spinner-sm" style={{ borderColor: 'rgba(255,255,255,0.2)', borderTopColor: '#fff' }} />
+                    {mode === 'login' ? 'Signing in…' : 'Creating account…'}
                   </span>
-                ) : mode === 'login' ? 'Sign In' : 'Create Account'}
+                ) : (
+                  <>
+                    {mode === 'login' ? 'Sign In' : 'Create Account'}
+                    <ArrowRight size={16} />
+                  </>
+                )}
               </button>
             </form>
 
-            <p style={{ textAlign: 'center', marginTop: 20, fontSize: 13, color: 'var(--text-dim)' }}>
-              {mode === 'login' ? "Don't have an account? " : 'Already have an account? '}
+            <div className="flex items-center gap-3 my-6">
+              <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+              <span className="text-xs" style={{ color: 'var(--text-dim)' }}>or</span>
+              <div className="flex-1 h-px" style={{ background: 'var(--border)' }} />
+            </div>
+
+            <p className="text-center text-sm" style={{ color: 'var(--text-dim)' }}>
+              {mode === 'login' ? "New to LinkUp? " : 'Already have an account? '}
               <button
                 onClick={() => setMode(mode === 'login' ? 'register' : 'login')}
-                style={{ color: 'var(--accent2)', fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer' }}
+                className="font-bold transition-all hover:underline"
+                style={{ color: 'var(--accent2)', background: 'none', border: 'none', cursor: 'pointer' }}
               >
-                {mode === 'login' ? 'Sign Up' : 'Sign In'}
+                {mode === 'login' ? 'Create a free account' : 'Sign in instead'}
               </button>
             </p>
           </div>

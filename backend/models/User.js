@@ -18,6 +18,59 @@ const userSchema = new mongoose.Schema(
       type: String,
       default: "",
     },
+    bio: {
+      type: String,
+      trim: true,
+      maxlength: 160,
+      default: "",
+    },
+    profilePicture: {
+      type: String,
+      trim: true,
+      default: "",
+    },
+    interests: {
+      type: [String],
+      default: [],
+      validate: {
+        validator: (value) => Array.isArray(value) && value.length <= 12,
+        message: "Interests cannot exceed 12 items",
+      },
+    },
+    showActiveStatus: {
+      type: Boolean,
+      default: true,
+    },
+    privacySettings: {
+      showProfile: { type: Boolean, default: true },
+      showOnlineStatus: { type: Boolean, default: true },
+      allowRandomMatch: { type: Boolean, default: true },
+      anonymousMode: { type: Boolean, default: false },
+    },
+    anonymousId: {
+      type: String,
+      default: null,
+    },
+    blockedUsers: [
+      {
+        userId: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        username: { type: String, required: true },
+        blockedAt: { type: Date, default: Date.now },
+      },
+    ],
+    reports: [
+      {
+        reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
+        reportedByUsername: { type: String, required: true },
+        reason: {
+          type: String,
+          enum: ["spam", "harassment", "inappropriate", "other"],
+          required: true,
+        },
+        details: { type: String, default: "" },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
     status: {
       type: String,
       enum: ["online", "offline"],

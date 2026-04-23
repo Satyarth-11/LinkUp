@@ -32,6 +32,14 @@ const messageSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+    anonymousId: {
+      type: String,
+      default: null,
+    },
+    seenBy: {
+      type: [String],
+      default: [],
+    },
     timestamp: {
       type: Date,
       default: Date.now,
