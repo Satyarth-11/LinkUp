@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { apiCall } from '../utils/api'
+import { getOrCreateKeyPair } from '../utils/crypto'
 import { Eye, EyeOff, Zap, Shield, Users, MessageSquare, ArrowRight } from 'lucide-react'
 
 export default function AuthPage() {
@@ -25,6 +26,24 @@ export default function AuthPage() {
       const endpoint = mode === 'login' ? '/auth/login' : '/auth/register'
       const data = await apiCall(endpoint, { method: 'POST', body: { username: username.trim(), password } })
       login(data.user, data.token)
+
+      // Generate (or reuse) ECDH keypair and upload public key to server
+      try {
+        const publicKey = await getOrCreateKeyPair()
+        await apiCall('/auth/profile', {
+          method: 'PUT',
+          body: {
+            bio: data.user.bio || '',
+            profilePicture: data.user.profilePicture || '',
+            interests: data.user.interests || [],
+            showActiveStatus: data.user.showActiveStatus !== false,
+            publicKey,
+          },
+        }, data.token)
+      } catch (keyErr) {
+        console.warn('Key upload failed (non-fatal):', keyErr)
+      }
+
       toast(`Welcome${mode === 'register' ? ' to LinkUp' : ' back'}, ${data.user.username}!`, 'success')
       navigate('/')
     } catch (err) {

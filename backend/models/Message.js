@@ -44,6 +44,14 @@ const messageSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    encrypted: {
+      type: Boolean,
+      default: false, // true when text is AES-GCM ciphertext
+    },
+    iv: {
+      type: String,
+      default: null, // base64-encoded AES-GCM IV (only set when encrypted=true)
+    },
   },
   { timestamps: true }
 );

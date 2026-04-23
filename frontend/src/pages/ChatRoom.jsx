@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { getSocket } from '../utils/socket'
 import { apiCall, API_BASE } from '../utils/api'
+import { deriveSharedKey, encryptMessage, decryptMessage } from '../utils/crypto'
 import VideoCall, { CALL_STATE } from '../components/VideoCall'
 import {
   ArrowLeft, Send, Image, X, Users, Lock, Eye, EyeOff,
@@ -172,6 +173,7 @@ export default function ChatRoom() {
   const [reportTarget, setReportTarget] = useState('')
   const [socketMap, setSocketMap] = useState({})
   const [callState, setCallState] = useState(CALL_STATE.IDLE)
+  const [sharedKey, setSharedKey] = useState(null) // AES-GCM key for private rooms
 
   const socketRef = useRef(null)
   const messagesEndRef = useRef(null)
@@ -196,6 +198,22 @@ export default function ChatRoom() {
       .then(data => setRoomInfo(data))
       .catch(() => {})
   }, [roomId, token])
+
+  // Derive shared AES key for private rooms
+  useEffect(() => {
+    if (!roomInfo || roomInfo.type !== 'private' || !token) return
+    const members = roomInfo.members || []
+    const partner = members.find(m => m?.toLowerCase() !== user.username?.toLowerCase())
+    if (!partner) return
+
+    apiCall(`/auth/public-key/${partner}`, {}, token)
+      .then(async ({ publicKey }) => {
+        if (!publicKey) return
+        const key = await deriveSharedKey(publicKey)
+        setSharedKey(key)
+      })
+      .catch((err) => console.warn('Key derivation failed:', err))
+  }, [roomInfo, token, user.username])
 
   const markMessagesAsSeen = useCallback((items) => {
     const socket = socketRef.current
@@ -238,17 +256,32 @@ export default function ChatRoom() {
       })
     }
 
-    const handleHistory = (history) => {
-      setMessages(history)
-      markMessagesAsSeen(history)
+    const handleHistory = async (history) => {
+      // Decrypt any encrypted messages in history
+      const decrypted = await Promise.all(
+        history.map(async (msg) => {
+          if (msg.encrypted && msg.iv && sharedKey) {
+            const plain = await decryptMessage(msg.iv, msg.text, sharedKey)
+            return { ...msg, text: plain ?? '🔒 (encrypted)' }
+          }
+          return msg
+        })
+      )
+      setMessages(decrypted)
+      markMessagesAsSeen(decrypted)
     }
 
-    const handleMessage = (msg) => {
+    const handleMessage = async (msg) => {
+      let finalMsg = msg
+      if (msg.encrypted && msg.iv && sharedKey) {
+        const plain = await decryptMessage(msg.iv, msg.text, sharedKey)
+        finalMsg = { ...msg, text: plain ?? '🔒 (encrypted)' }
+      }
       setMessages(prev => {
-        if (msg._id && prev.find(m => m._id === msg._id)) return prev
-        return [...prev, msg]
+        if (finalMsg._id && prev.find(m => m._id === finalMsg._id)) return prev
+        return [...prev, finalMsg]
       })
-      markMessagesAsSeen([msg])
+      markMessagesAsSeen([finalMsg])
     }
 
     const handleUserJoined = ({ message }) => {
@@ -339,7 +372,7 @@ export default function ChatRoom() {
       socket.off('user_blocked', handleBlocked)
       socket.off('error', handleError)
     }
-  }, [roomId, token, user.username, toast, emitStopTyping, markMessagesAsSeen, isAnonymous, anonymousId])
+  }, [roomId, token, user.username, toast, emitStopTyping, markMessagesAsSeen, isAnonymous, anonymousId, sharedKey])
 
   const handleToggleAnonymous = () => {
     const socket = socketRef.current
@@ -398,16 +431,33 @@ export default function ChatRoom() {
       setImagePreview(null)
     }
 
+    // Encrypt message if we have a shared key (private rooms)
+    let msgText = text.trim()
+    let msgIv = null
+    let isEncrypted = false
+    if (sharedKey && msgText) {
+      try {
+        const { iv, ciphertext } = await encryptMessage(msgText, sharedKey)
+        msgText = ciphertext
+        msgIv = iv
+        isEncrypted = true
+      } catch (err) {
+        console.warn('Encryption failed, sending plaintext:', err)
+      }
+    }
+
     socket.emit('send_message', {
       roomId,
-      text: text.trim(),
+      text: msgText,
       image: imageUrl,
       isAnonymous,
       displayName: isAnonymous ? (anonymousId || 'Anonymous') : user.username,
+      encrypted: isEncrypted,
+      iv: msgIv,
     })
     setText('')
     emitStopTyping()
-  }, [text, imagePreview, isAnonymous, anonymousId, roomId, token, user.username, toast, emitStopTyping])
+  }, [text, imagePreview, isAnonymous, anonymousId, roomId, token, user.username, toast, emitStopTyping, sharedKey])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
@@ -446,6 +496,21 @@ export default function ChatRoom() {
               <div className="flex items-center gap-1.5 font-bold text-sm truncate">
                 {roomTypeIcon}
                 <span className="truncate">{roomInfo?.name || roomId}</span>
+                {roomInfo?.type === 'private' && sharedKey && (
+                  <span
+                    title="End-to-End Encrypted"
+                    style={{
+                      fontSize: 10, fontWeight: 600,
+                      color: '#22c55e',
+                      background: 'rgba(34,197,94,0.1)',
+                      border: '1px solid rgba(34,197,94,0.25)',
+                      borderRadius: 6,
+                      padding: '1px 6px',
+                      marginLeft: 2,
+                      letterSpacing: '0.02em',
+                    }}
+                  >🔒 E2E</span>
+                )}
               </div>
               <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                 {onlineCount} online{!connected && ' · reconnecting…'}

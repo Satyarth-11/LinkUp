@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { API_BASE } from '../utils/api'
+import { clearKeys } from '../utils/crypto'
 
 const AuthContext = createContext(null)
 
@@ -49,6 +50,7 @@ export function AuthProvider({ children }) {
     setToken(null)
     localStorage.removeItem('linkup_token')
     localStorage.removeItem('linkup_user')
+    clearKeys() // remove ECDH keys from localStorage
   }
 
   return (

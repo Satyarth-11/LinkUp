@@ -4,6 +4,7 @@ import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { getSocket } from '../utils/socket'
 import { apiCall } from '../utils/api'
+import { getOrCreateKeyPair, deriveSharedKey, encryptMessage, decryptMessage } from '../utils/crypto'
 import {
   ArrowLeft, Send, Zap, RefreshCw, X, Globe, Hash, SlidersHorizontal,
   Ghost, UserX, Flag, ShieldOff
@@ -164,6 +165,11 @@ export default function RandomChat() {
   const partnerSocketIdRef = useRef(null)
   const socketRef = useRef(null)
   const messagesEndRef = useRef(null)
+  const [sharedKey, setSharedKey] = useState(null) // ephemeral AES-GCM key for this session
+  const sharedKeyRef = useRef(null) // ref so async callbacks always see latest key
+
+  // Keep ref in sync with state
+  useEffect(() => { sharedKeyRef.current = sharedKey }, [sharedKey])
 
   const allowRandomMatch = user?.privacySettings?.allowRandomMatch !== false
 
@@ -184,21 +190,51 @@ export default function RandomChat() {
       })
     })
 
-    socket.on('random_matched', ({ roomId, partnerSocketId }) => {
+    socket.on('random_matched', async ({ roomId, partnerSocketId }) => {
       setCurrentRoomId(roomId)
       setStatus(STATUS.CHATTING)
       partnerSocketIdRef.current = partnerSocketId || null
+      setSharedKey(null) // reset key for new session
+
+      // Initiate E2E key exchange — send our public key to partner
+      try {
+        const myPublicKey = await getOrCreateKeyPair()
+        socket.emit('exchange_key', { to: partnerSocketId, publicKey: myPublicKey })
+      } catch (err) {
+        console.warn('Key exchange initiation failed:', err)
+      }
     })
 
-    socket.on('receive_message', (msg) => {
+    // Handle incoming public key from partner — derive shared AES-GCM key
+    socket.on('exchange_key', async ({ from, publicKey }) => {
+      try {
+        const key = await deriveSharedKey(publicKey)
+        setSharedKey(key)
+      } catch (err) {
+        console.warn('Key derivation failed:', err)
+      }
+    })
+
+    socket.on('receive_message', async (msg) => {
       if (msg.sender !== user.username) {
-        setMessages(prev => [...prev, { ...msg, _id: msg._id || `msg_${Date.now()}` }])
+        let finalMsg = { ...msg, _id: msg._id || `msg_${Date.now()}` }
+        // Decrypt if encrypted
+        if (msg.encrypted && msg.iv) {
+          // Use current sharedKey from closure — may not be set yet; use ref
+          const currentKey = sharedKeyRef.current
+          if (currentKey) {
+            const plain = await decryptMessage(msg.iv, msg.text, currentKey)
+            finalMsg = { ...finalMsg, text: plain ?? '🔒 (encrypted)' }
+          }
+        }
+        setMessages(prev => [...prev, finalMsg])
       }
     })
 
     socket.on('random_partner_left', () => {
       setStatus(STATUS.DISCONNECTED)
       setCurrentRoomId(null)
+      setSharedKey(null)
     })
 
     socket.on('error', ({ message }) => toast(message, 'error'))
@@ -206,6 +242,7 @@ export default function RandomChat() {
     return () => {
       socket.off('random_waiting')
       socket.off('random_matched')
+      socket.off('exchange_key')
       socket.off('receive_message')
       socket.off('random_partner_left')
       socket.off('error')
@@ -239,13 +276,31 @@ export default function RandomChat() {
     }
   }
 
-  const sendMessage = useCallback(() => {
+  const sendMessage = useCallback(async () => {
     const socket = socketRef.current
     if (!socket || !text.trim() || !currentRoomId) return
-    setMessages(prev => [...prev, { type: 'text', text: text.trim(), timestamp: new Date(), _id: `me_${Date.now()}`, sender: user.username }])
-    socket.emit('send_message', { roomId: currentRoomId, text: text.trim(), isAnonymous: true, displayName: 'You' })
+    const msgText = text.trim()
+
+    // Encrypt if we have a shared key
+    let finalText = msgText
+    let msgIv = null
+    let isEncrypted = false
+    if (sharedKey) {
+      try {
+        const { iv, ciphertext } = await encryptMessage(msgText, sharedKey)
+        finalText = ciphertext
+        msgIv = iv
+        isEncrypted = true
+      } catch (err) {
+        console.warn('Encryption failed, sending plaintext:', err)
+      }
+    }
+
+    // Add to local messages immediately (plaintext for sender)
+    setMessages(prev => [...prev, { type: 'text', text: msgText, timestamp: new Date(), _id: `me_${Date.now()}`, sender: user.username }])
+    socket.emit('send_message', { roomId: currentRoomId, text: finalText, isAnonymous: true, displayName: 'You', encrypted: isEncrypted, iv: msgIv })
     setText('')
-  }, [text, currentRoomId, user.username])
+  }, [text, currentRoomId, user.username, sharedKey])
 
   const handleKeyDown = (e) => {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage() }
@@ -290,6 +345,20 @@ export default function RandomChat() {
             <div>
               <div className="flex items-center gap-1.5 font-bold text-sm">
                 <Zap size={13} style={{ color: 'var(--accent2)' }} /> Random Chat
+                {status === STATUS.CHATTING && sharedKey && (
+                  <span
+                    title="End-to-End Encrypted"
+                    style={{
+                      fontSize: 10, fontWeight: 600,
+                      color: '#22c55e',
+                      background: 'rgba(34,197,94,0.1)',
+                      border: '1px solid rgba(34,197,94,0.25)',
+                      borderRadius: 6,
+                      padding: '1px 6px',
+                      letterSpacing: '0.02em',
+                    }}
+                  >🔒 E2E</span>
+                )}
               </div>
               <div className="text-[11px]" style={{ color: 'var(--text-muted)' }}>
                 {status === STATUS.IDLE && 'Configure & connect'}

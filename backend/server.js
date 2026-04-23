@@ -74,7 +74,18 @@ app.post("/api/upload", authMiddleware, upload.single("image"), (req, res) => {
 /* -------------------- DATABASE -------------------- */
 mongoose
   .connect(process.env.MONGO_URI)
-  .then(() => console.log("✅ MongoDB Connected"))
+  .then(async () => {
+    console.log("✅ MongoDB Connected");
+    // Fresh start: delete all old plaintext messages
+    try {
+      const result = await Message.deleteMany({});
+      if (result.deletedCount > 0) {
+        console.log(`🗑️  Cleared ${result.deletedCount} legacy messages — E2E encryption is now active.`);
+      }
+    } catch (err) {
+      console.error("Migration error:", err);
+    }
+  })
   .catch((err) => console.log("❌ MongoDB Error:", err));
 
 /* -------------------- SERVER + SOCKET -------------------- */
@@ -441,7 +452,7 @@ io.on("connection", (socket) => {
   /* ======== SEND MESSAGE ======== */
   socket.on("send_message", async (data) => {
     try {
-      const { roomId, text, image, isAnonymous, displayName } = data;
+      const { roomId, text, image, isAnonymous, displayName, encrypted, iv } = data;
       const sender = socket.user.username;
       const isAnonMode = isAnonymous || socket.user.privacySettings?.anonymousMode === true;
       const anonId = socket.user.anonymousId || "Anonymous";
@@ -460,6 +471,8 @@ io.on("connection", (socket) => {
         anonymousId: isAnonMode ? anonId : null,
         seenBy: [storedSender],
         timestamp: new Date(),
+        encrypted: encrypted === true,
+        iv: iv || null,
       });
 
       await newMessage.save();
@@ -476,6 +489,8 @@ io.on("connection", (socket) => {
         anonymousId: isAnonMode ? anonId : null,
         seenBy: newMessage.seenBy,
         timestamp: newMessage.timestamp,
+        encrypted: newMessage.encrypted,
+        iv: newMessage.iv,
       });
     } catch (err) {
       console.error("Message save error:", err);
@@ -640,6 +655,17 @@ io.on("connection", (socket) => {
       });
       socket.leave(roomId);
       randomRooms.delete(socket.id);
+    }
+  });
+
+  /* ======== E2E KEY EXCHANGE (Random Chat) ======== */
+  // The server acts as a pure relay — it never stores or reads the public key
+  socket.on("exchange_key", ({ to, publicKey }) => {
+    if (to && publicKey) {
+      io.to(to).emit("exchange_key", {
+        from: socket.id,
+        publicKey,
+      });
     }
   });
 

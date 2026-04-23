@@ -80,6 +80,10 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: Date.now,
     },
+    publicKey: {
+      type: String,
+      default: null, // ECDH P-256 public key in JWK JSON string format
+    },
   },
   { timestamps: true }
 );

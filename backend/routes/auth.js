@@ -20,6 +20,7 @@ const sanitizeUser = (user) => ({
     anonymousMode: user.privacySettings?.anonymousMode === true,
   },
   anonymousId: user.anonymousId || null,
+  publicKey: user.publicKey || null,
 });
 
 /* -------- REGISTER -------- */
@@ -138,7 +139,7 @@ router.get("/profile", authMiddleware, async (req, res) => {
 
 router.put("/profile", authMiddleware, async (req, res) => {
   try {
-    const { bio = "", profilePicture = "", interests = [], showActiveStatus = true } = req.body;
+    const { bio = "", profilePicture = "", interests = [], showActiveStatus = true, publicKey } = req.body;
 
     if (typeof bio !== "string") {
       return res.status(400).json({ message: "Bio must be a string" });
@@ -167,6 +168,7 @@ router.put("/profile", authMiddleware, async (req, res) => {
         interests: normalizedInterests,
         showActiveStatus,
         "privacySettings.showOnlineStatus": showActiveStatus,
+        ...(typeof publicKey === "string" && publicKey ? { publicKey } : {}),
       },
       { new: true, runValidators: true }
     ).select("-password");
@@ -181,6 +183,22 @@ router.put("/profile", authMiddleware, async (req, res) => {
     });
   } catch (err) {
     console.error("Update profile error:", err);
+    res.status(500).json({ message: "Server error" });
+  }
+});
+
+/* -------- GET PUBLIC KEY -------- */
+router.get("/public-key/:username", authMiddleware, async (req, res) => {
+  try {
+    const user = await User.findOne({
+      username: req.params.username.toLowerCase(),
+    }).select("publicKey username");
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
+    res.json({ username: user.username, publicKey: user.publicKey || null });
+  } catch (err) {
+    console.error("Get public key error:", err);
     res.status(500).json({ message: "Server error" });
   }
 });
