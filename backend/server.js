@@ -19,35 +19,11 @@ const User = require("./models/User");
 const app = express();
 
 /* -------------------- MIDDLEWARE -------------------- */
-const allowedOrigins = (process.env.FRONTEND_URL || "")
-  .split(",")
-  .map((o) => o.trim())
-  .filter(Boolean);
-
-// Helper: check if an origin is allowed
-const isOriginAllowed = (origin) => {
-  if (!origin) return true; // Allow no-origin requests (mobile, curl, etc.)
-  // Explicitly listed origins
-  if (allowedOrigins.includes(origin)) return true;
-  // Allow any Vercel deployment (*.vercel.app)
-  if (/^https:\/\/[a-z0-9-]+\.vercel\.app$/.test(origin)) return true;
-  // Allow localhost on any port for development
-  if (/^http:\/\/localhost(:\d+)?$/.test(origin)) return true;
-  if (/^http:\/\/127\.0\.0\.1(:\d+)?$/.test(origin)) return true;
-  // Allow Android WebView and Capacitor
-  if (origin === "capacitor://localhost" || origin === "http://localhost") return true;
-  return false;
-};
-
+// Allow ALL origins — API is secured via JWT tokens, not cookies,
+// so open CORS is safe and required for Android Capacitor WebView.
 app.use(
   cors({
-    origin: function (origin, callback) {
-      if (isOriginAllowed(origin)) {
-        return callback(null, true);
-      }
-      console.warn(`CORS blocked origin: ${origin}`);
-      return callback(new Error("Not allowed by CORS"));
-    },
+    origin: true,        // reflect any origin
     credentials: true,
   })
 );
@@ -106,7 +82,7 @@ const server = http.createServer(app);
 
 const io = new Server(server, {
   cors: {
-    origin: isOriginAllowed,
+    origin: true,
     methods: ["GET", "POST"],
     credentials: true,
   },
