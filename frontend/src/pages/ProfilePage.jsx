@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, ImagePlus, Save, Sparkles, UserCircle2 } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
-import { apiCall } from '../utils/api'
+import { apiCall, API_BASE } from '../utils/api'
 import { getSocket } from '../utils/socket'
 
 const MAX_INTERESTS = 12
@@ -99,8 +99,7 @@ export default function ProfilePage() {
     formData.append('image', file)
     setUploadingImage(true)
     try {
-      const apiUrl = import.meta.env.VITE_API_URL || ''
-      const response = await fetch(`${apiUrl}/api/upload`, {
+      const response = await fetch(`${API_BASE}/api/upload`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
         body: formData,

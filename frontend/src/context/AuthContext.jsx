@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect } from 'react'
+import { API_BASE } from '../utils/api'
 
 const AuthContext = createContext(null)
 
@@ -37,11 +38,9 @@ export function AuthProvider({ children }) {
     localStorage.setItem('linkup_user', JSON.stringify(userData))
   }
 
-  const apiUrl = import.meta.env.VITE_API_URL || ''
-
   const logout = async () => {
     try {
-      await fetch(`${apiUrl}/api/auth/logout`, {
+      await fetch(`${API_BASE}/api/auth/logout`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${token}` },
       })

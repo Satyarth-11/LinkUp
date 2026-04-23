@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { useToast } from '../context/ToastContext'
 import { getSocket } from '../utils/socket'
-import { apiCall } from '../utils/api'
+import { apiCall, API_BASE } from '../utils/api'
 import VideoCall, { CALL_STATE } from '../components/VideoCall'
 import {
   ArrowLeft, Send, Image, X, Users, Lock, Eye, EyeOff,
@@ -381,8 +381,7 @@ export default function ChatRoom() {
       try {
         const formData = new FormData()
         formData.append('image', imagePreview.file)
-        const apiUrl = import.meta.env.VITE_API_URL || ''
-        const res = await fetch(`${apiUrl}/api/upload`, {
+        const res = await fetch(`${API_BASE}/api/upload`, {
           method: 'POST',
           headers: { Authorization: `Bearer ${token}` },
           body: formData,
